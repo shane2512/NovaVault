@@ -1,15 +1,16 @@
 'use client';
 
-import { ArrowUpRight, ArrowDownLeft, Repeat } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Repeat, ArrowLeftRight } from 'lucide-react';
 
 interface ActionButtonsProps {
   onSend: () => void;
   onReceive: () => void;
   onSwap?: () => void;
+  onCrossChain?: () => void;
   blockchain?: string;
 }
 
-export function ActionButtons({ onSend, onReceive, onSwap, blockchain }: ActionButtonsProps) {
+export function ActionButtons({ onSend, onReceive, onSwap, onCrossChain, blockchain }: ActionButtonsProps) {
   const isArcNetwork = blockchain === 'ARC-TESTNET';
   
   return (
@@ -52,6 +53,18 @@ export function ActionButtons({ onSend, onReceive, onSwap, blockchain }: ActionB
               <Repeat size={24} />
             </div>
             <span className="text-sm font-medium text-gray-700">Swap</span>
+          </button>
+        )}
+        
+        {onCrossChain && (
+          <button
+            onClick={onCrossChain}
+            className="flex flex-col items-center space-y-2 group"
+          >
+            <div className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white group-hover:bg-orange-600 transition-colors">
+              <ArrowLeftRight size={24} />
+            </div>
+            <span className="text-sm font-medium text-gray-700">Bridge</span>
           </button>
         )}
       </div>

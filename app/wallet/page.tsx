@@ -6,6 +6,8 @@ import { BalanceDisplay } from '@/components/BalanceDisplay';
 import { ActionButtons } from '@/components/ActionButtons';
 import { SendModal } from '@/components/SendModal';
 import { ReceiveModal } from '@/components/ReceiveModal';
+import { SwapModal } from '@/components/SwapModal';
+import { CrossChainModal } from '@/components/CrossChainModal';
 import { TransactionList } from '@/components/TransactionList';
 import { useWalletStore } from '@/lib/wallet-store';
 import { ChevronDown, Settings, Menu } from 'lucide-react';
@@ -21,6 +23,8 @@ export default function WalletPage() {
   const [wallets, setWallets] = useState<WalletData[]>([]);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [showCrossChainModal, setShowCrossChainModal] = useState(false);
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [balanceData, setBalanceData] = useState({
     nativeBalance: '0',
@@ -137,7 +141,7 @@ export default function WalletPage() {
           <div className="bg-white border-x border-gray-200 shadow-lg">
             {wallets.map((wallet) => (
               <button
-                key={wallet.id}
+                key={`${wallet.id}-${wallet.blockchain}`}
                 onClick={() => {
                   setSelectedWallet(wallet);
                   setShowWalletSelector(false);
@@ -174,6 +178,8 @@ export default function WalletPage() {
           <ActionButtons
             onSend={() => setShowSendModal(true)}
             onReceive={() => setShowReceiveModal(true)}
+            onSwap={() => setShowSwapModal(true)}
+            onCrossChain={() => setShowCrossChainModal(true)}
             blockchain={selectedWallet.blockchain}
           />
 
@@ -193,6 +199,34 @@ export default function WalletPage() {
       </div>
 
       {/* Modals */}
+      <SendModal
+        isOpen={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        onSuccess={loadBalance}
+        walletId={selectedWallet.id}
+        walletAddress={selectedWallet.address}
+        blockchain={selectedWallet.blockchain}
+      />
+
+      <ReceiveModal
+        isOpen={showReceiveModal}
+        onClose={() => setShowReceiveModal(false)}
+        address={selectedWallet.address}
+        blockchain={selectedWallet.blockchain}
+      />
+
+      <SwapModal
+        isOpen={showSwapModal}
+        onClose={() => setShowSwapModal(false)}
+        onSuccess={loadBalance}
+      />
+
+      <CrossChainModal
+        isOpen={showCrossChainModal}
+        onClose={() => setShowCrossChainModal(false)}
+        onSuccess={loadBalance}
+      />
+
       <SendModal
         isOpen={showSendModal}
         onClose={() => setShowSendModal(false)}

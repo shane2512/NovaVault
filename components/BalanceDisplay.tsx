@@ -39,13 +39,15 @@ export function BalanceDisplay({ nativeBalance, usdcBalance, symbol, isLoading }
         </div>
       ) : (
         <>
-          <div className="text-5xl font-bold text-gray-900 mb-4">
+          {/* Primary Balance: USDC */}
+          <div className="text-5xl font-bold text-gray-900 mb-2">
             {showBalance ? formatBalance(usdcBalance) : '••••••'}
             <span className="text-3xl ml-2 text-gray-600">USDC</span>
           </div>
 
+          {/* Secondary Balance: ETH */}
           {parseFloat(nativeBalance) > 0 && (
-            <div className="text-lg text-gray-600">
+            <div className="text-xl text-gray-500 font-medium">
               {showBalance ? formatBalance(nativeBalance) : '••••••'} {symbol}
             </div>
           )}
