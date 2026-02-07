@@ -19,6 +19,10 @@ export function SendModal({ isOpen, onClose, walletId, blockchain, currentBalanc
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [explorerUrl, setExplorerUrl] = useState<string | null>(null);
+  const [txMessage, setTxMessage] = useState<string>('');
+  const [circleTransactionId, setCircleTransactionId] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
 
   if (!isOpen) return null;
 
@@ -47,12 +51,21 @@ export function SendModal({ isOpen, onClose, walletId, blockchain, currentBalanc
       });
 
       setSuccess(true);
+      setExplorerUrl(response.data.explorerUrl || null);
+      setTxMessage(response.data.message || 'Transaction submitted');
+      setCircleTransactionId(response.data.circleTransactionId || null);
+      setIsPending(!response.data.txHash || !response.data.txHash.startsWith('0x'));
+      
       setTimeout(() => {
         onClose();
         setTo('');
         setAmount('');
         setSuccess(false);
-      }, 2000);
+        setExplorerUrl(null);
+        setTxMessage('');
+        setCircleTransactionId(null);
+        setIsPending(false);
+      }, 5000);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to send transaction');
     } finally {
@@ -76,9 +89,35 @@ export function SendModal({ isOpen, onClose, walletId, blockchain, currentBalanc
         <div className="p-6 space-y-4">
           {success ? (
             <div className="text-center py-8">
-              <div className="text-6xl mb-4">✅</div>
-              <h3 className="text-xl font-bold text-gray-900">Transaction Sent!</h3>
-              <p className="text-gray-600 mt-2">Your transaction is being processed</p>
+              <div className="text-6xl mb-4">{isPending ? '⏳' : '✅'}</div>
+              <h3 className="text-xl font-bold text-gray-900">
+                {isPending ? 'Transaction Submitted!' : 'Transaction Confirmed!'}
+              </h3>
+              <p className="text-gray-600 mt-2">{txMessage}</p>
+              
+              {circleTransactionId && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs text-gray-500 mb-1">Circle Transaction ID</p>
+                  <p className="text-xs font-mono text-gray-700 break-all">{circleTransactionId}</p>
+                </div>
+              )}
+              
+              {explorerUrl && (
+                <a
+                  href={explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-4 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                >
+                  View on Blockchain Explorer →
+                </a>
+              )}
+              
+              {isPending && (
+                <p className="text-xs text-gray-500 mt-4">
+                  Blockchain confirmation pending. This may take a few minutes.
+                </p>
+              )}
             </div>
           ) : (
             <>

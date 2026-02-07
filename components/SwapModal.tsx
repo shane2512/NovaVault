@@ -19,7 +19,8 @@ const TOKENS = [
 ];
 
 export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
-  const { selectedWallet } = useWalletStore();
+  const { selectedWallet, getActiveNetwork } = useWalletStore();
+  const activeNetwork = getActiveNetwork();
   const [tokenIn, setTokenIn] = useState(TOKENS[0]); // Default to ETH
   const [tokenOut, setTokenOut] = useState(TOKENS[1]); // Default to USDC
   const [amountIn, setAmountIn] = useState('');
@@ -37,11 +38,10 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
   // Quote state
   const [isGettingQuote, setIsGettingQuote] = useState(false);
   
-  // Transaction hashes
+  // Transaction hashes and explorer URLs
   const [txHashes, setTxHashes] = useState<{
-    bridgeTxHash?: string;
     swapTxHash?: string;
-    returnTxHash?: string;
+    explorerUrl?: string;
   }>({});
   
   // Get quote when amount changes
@@ -64,7 +64,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
           tokenIn: tokenIn.address,
           tokenOut: tokenOut.address,
           amountIn,
-          currentNetwork: selectedWallet?.blockchain || 'ETH-SEPOLIA'
+          currentNetwork: activeNetwork?.blockchain || 'ETH-SEPOLIA'
         })
       });
       
@@ -84,8 +84,18 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
   };
   
   const handleSwap = async () => {
+    console.log('🔄 SWAP BUTTON CLICKED');
+    console.log('Selected Wallet:', selectedWallet);
+    console.log('Active Network:', activeNetwork);
+    console.log('Token In:', tokenIn);
+    console.log('Token Out:', tokenOut);
+    console.log('Amount In:', amountIn);
+    console.log('Amount Out:', amountOut);
+    console.log('Slippage:', slippage);
+    
     if (!selectedWallet) {
       setError('No wallet selected');
+      console.error('❌ No wallet selected');
       return;
     }
 
@@ -94,8 +104,8 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
     setStep(1);
     
     try {
-      console.log('Executing swap for wallet:', selectedWallet.id);
-      console.log('Network:', selectedWallet.blockchain);
+      console.log('📤 Sending swap request to API...');
+      console.log('Wallet Address:', activeNetwork?.address);
       
       // Execute swap via server (sends output to Circle wallet)
       const response = await fetch('/api/swap/execute', {
@@ -106,22 +116,27 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
           tokenOut: tokenOut.address,
           amountIn,
           slippage,
-          walletAddress: selectedWallet.address
+          walletAddress: activeNetwork?.address || ''
         })
       });
       
+      console.log('📥 API Response Status:', response.status);
       const result = await response.json();
+      console.log('📥 API Response Data:', result);
       
       if (!response.ok) {
+        console.error('❌ Swap failed:', result.error);
         throw new Error(result.error || 'Swap failed');
       }
       
       setStep(3); // Completed
-      console.log('Swap completed:', result);
+      console.log('✅ Swap completed successfully!');
+      console.log('Transaction:', result);
       
-      // Store transaction hash for block explorer link
+      // Store transaction hash and explorer URL
       setTxHashes({
-        swapTxHash: result.swapTxHash
+        swapTxHash: result.swapTxHash,
+        explorerUrl: result.explorerUrl
       });
       
       if (onSuccess) {
@@ -135,11 +150,16 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
       }, 3000);
       
     } catch (err: any) {
-      console.error('Swap error:', err);
-      setError(err.message || 'Swap failed');
+      console.error('❌ SWAP ERROR:', err);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
+      const errorMsg = err.message || 'Swap failed';
+      setError(errorMsg);
+      alert('Swap Error: ' + errorMsg);
       setStep(0);
     } finally {
       setIsLoading(false);
+      console.log('🏁 Swap process finished');
     }
   };
   
@@ -191,7 +211,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
             <h2 className="text-xl font-bold">Swap Tokens</h2>
             {selectedWallet && (
               <p className="text-xs text-gray-500 mt-0.5">
-                on {selectedWallet.blockchain}
+                on {activeNetwork?.blockchain}
               </p>
             )}
           </div>
@@ -339,7 +359,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
               <div className="text-sm text-gray-700">
                 <div className="font-medium text-gray-800">Swap Details</div>
                 <div className="mt-1">
-                  Executing on {selectedWallet?.blockchain || 'your network'} • Price impact: {priceImpact.toFixed(2)}%
+                  Executing on {activeNetwork?.blockchain || 'your network'} • Price impact: {priceImpact.toFixed(2)}%
                 </div>
               </div>
             </div>
@@ -368,7 +388,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
                       <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">✓</div>
                     )}
                     <span className="text-sm font-medium">
-                      Executing swap on {selectedWallet?.blockchain || 'current network'}
+                      Executing swap on {activeNetwork?.blockchain || 'current network'}
                     </span>
                   </div>
                 </>
@@ -384,7 +404,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
                       <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">✓</div>
                     )}
                     <span className="text-sm font-medium">
-                      Step 1: Bridging from {selectedWallet?.blockchain || 'current network'} to Unichain
+                      Step 1: Bridging from {activeNetwork?.blockchain || 'current network'} to Unichain
                     </span>
                   </div>
                   
@@ -410,7 +430,7 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
                       <div className="w-5 h-5 rounded-full bg-gray-300" />
                     )}
                     <span className="text-sm font-medium">
-                      Step 3: Bridging back to {selectedWallet?.blockchain || 'current network'}
+                      Step 3: Bridging back to {activeNetwork?.blockchain || 'current network'}
                     </span>
                   </div>
                 </>
@@ -440,30 +460,28 @@ export function SwapModal({ isOpen, onClose, onSuccess }: SwapModalProps) {
           </button>
           
           {/* Transaction Links */}
-          {step === 3 && txHashes.swapTxHash && (
+          {step === 3 && txHashes.explorerUrl && (
             <div className="mt-4 p-3 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl space-y-2">
               <div className="flex items-center gap-2 text-green-800 font-semibold text-sm">
                 <CheckCircle2 size={16} />
-                View Transaction on Block Explorer
+                Transaction Completed
               </div>
               
-              <div className="flex items-center justify-between py-1">
-                <span className="text-xs text-gray-700">Swap Transaction</span>
-                <a 
-                  href={getExplorerUrl(txHashes.swapTxHash, 'sepolia')}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:text-blue-700 underline flex items-center gap-1 font-medium"
-                >
-                  View on Explorer <ExternalLink size={12} />
-                </a>
-              </div>
+              <a 
+                href={txHashes.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 py-2 px-3 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-sm text-gray-700 flex-1">View on Block Explorer</span>
+                <ExternalLink size={14} className="text-blue-600" />
+              </a>
             </div>
           )}
           
           {/* Info */}
           <div className="mt-4 text-xs text-gray-500 text-center">
-            Powered by Uniswap V3 on {selectedWallet?.blockchain || 'your network'}
+            Powered by Uniswap V3 on {activeNetwork?.blockchain || 'your network'}
           </div>
         </div>
       </div>

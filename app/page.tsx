@@ -20,6 +20,21 @@ export default function Home() {
             🚀 Open Wallet
           </a>
           
+          <div className="flex gap-4 justify-center mt-6">
+            <a
+              href="/recovery/initiate"
+              className="inline-flex items-center gap-2 bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 shadow-md hover:shadow-lg transition-all"
+            >
+              🛡️ Recover Wallet
+            </a>
+            <a
+              href="/recovery/guardian-dashboard"
+              className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 shadow-md hover:shadow-lg transition-all"
+            >
+              👥 Guardian Dashboard
+            </a>
+          </div>
+          
           <div className="mt-8 text-sm text-gray-500 dark:text-gray-400">
             Circle Developer-Controlled Wallets • Arc Testnet Ready
           </div>

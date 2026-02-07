@@ -38,7 +38,8 @@ export function TransactionList({ walletId, walletAddress }: TransactionListProp
     }
   };
 
-  const shortenAddress = (addr: string) => {
+  const shortenAddress = (addr: string | undefined) => {
+    if (!addr) return 'Unknown';
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
@@ -120,7 +121,7 @@ export function TransactionList({ walletId, walletAddress }: TransactionListProp
                     </p>
                     <p className="text-sm text-gray-500">
                       {isSent ? 'To' : 'From'} {shortenAddress(
-                        isSent ? tx.destinationAddress : (tx.sourceAddress || 'Unknown')
+                        isSent ? tx.destinationAddress : tx.sourceAddress
                       )}
                     </p>
                   </div>

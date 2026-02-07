@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Copy, Check, QrCode } from 'lucide-react';
+import { X, Copy, Check, QrCode, ExternalLink } from 'lucide-react';
 
 interface ReceiveModalProps {
   isOpen: boolean;
@@ -9,6 +9,22 @@ interface ReceiveModalProps {
   address: string;
   blockchain: string;
 }
+
+// Block Explorer URLs for each network
+const BLOCK_EXPLORERS: Record<string, { url: string; name: string }> = {
+  'ETH-SEPOLIA': {
+    url: 'https://sepolia.etherscan.io',
+    name: 'Etherscan'
+  },
+  'MATIC-AMOY': {
+    url: 'https://amoy.polygonscan.com',
+    name: 'PolygonScan'
+  },
+  'ARC-TESTNET': {
+    url: 'https://testnet.arcscan.app',
+    name: 'ArcScan'
+  }
+};
 
 export function ReceiveModal({ isOpen, onClose, address, blockchain }: ReceiveModalProps) {
   const [copied, setCopied] = useState(false);
@@ -20,6 +36,14 @@ export function ReceiveModal({ isOpen, onClose, address, blockchain }: ReceiveMo
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const getExplorerUrl = () => {
+    const explorer = BLOCK_EXPLORERS[blockchain];
+    return explorer ? `${explorer.url}/address/${address}` : null;
+  };
+
+  const explorerUrl = getExplorerUrl();
+  const explorerName = BLOCK_EXPLORERS[blockchain]?.name || 'Block Explorer';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -65,6 +89,20 @@ export function ReceiveModal({ isOpen, onClose, address, blockchain }: ReceiveMo
               </p>
             )}
           </div>
+
+          {explorerUrl && (
+            <div className="text-center">
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+              >
+                View on {explorerName}
+                <ExternalLink size={14} />
+              </a>
+            </div>
+          )}
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm text-yellow-800">

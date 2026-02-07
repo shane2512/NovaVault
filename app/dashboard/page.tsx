@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ethers } from "ethers";
-import { arcService } from "@/lib/services/arcService";
+import { arcUtils } from "@/lib/services/arcUtils";
 
 interface WalletData {
   address: string;
@@ -13,7 +13,7 @@ interface WalletData {
   owner: string;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const { address: userAddress, isConnected } = useAccount();
   
@@ -42,7 +42,7 @@ export default function DashboardPage() {
       
       const provider = new ethers.BrowserProvider(window.ethereum!);
       const signer = await provider.getSigner();
-      await arcService.connect(signer);
+      await arcUtils.connect(signer);
 
       // Load contract ABI
       const SmartWalletArtifact = await import("../../artifacts/contracts/arc/SmartWallet.sol/SmartWallet.json");
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                     {walletData.address}
                   </p>
                   <a
-                    href={arcService.getExplorerUrl(walletData.address)}
+                    href={arcUtils.getExplorerUrl(walletData.address)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-blue-600 dark:text-blue-400 underline"
@@ -340,5 +340,13 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
