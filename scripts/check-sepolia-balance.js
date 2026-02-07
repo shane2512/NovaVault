@@ -11,8 +11,12 @@ async function checkSepoliaBalance() {
   try {
     // Try multiple Sepolia RPC endpoints
     const rpcUrls = [
+      'https://eth-sepolia.api.onfinality.io/public',
       'https://ethereum-sepolia-rpc.publicnode.com',
-      'https://rpc.sepolia.org',
+      'https://rpc.sentio.xyz/sepolia',
+      'https://ethereum-sepolia-public.nodies.app',
+      'https://ethereum-sepolia.rpc.subquery.network/public',
+      'https://sepolia.drpc.org',
       'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
     ];
 
