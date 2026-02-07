@@ -1,0 +1,18 @@
+{
+  "network": "arc-testnet",
+  "contractName": "RecoveryController",
+  "address": "0xd01fac0953530D7833bA8eB0cc3CcCa2433BCD0b",
+  "deployer": "0x2801Cd130F6dc93D89949476d70E2E6f033270EC",
+  "deployedAt": "2026-02-06T06:40:43.169Z",
+  "blockNumber": 25568481,
+  "constructorArgs": {
+    "initialOwner": "0x2801Cd130F6dc93D89949476d70E2E6f033270EC",
+    "ensRegistry": "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+    "authorizedExecutor": "0x2801Cd130F6dc93D89949476d70E2E6f033270EC"
+  },
+  "constants": {
+    "MIN_THRESHOLD": 1,
+    "MAX_GUARDIANS": 10,
+    "RECOVERY_EXPIRATION": "7 days"
+  }
+}

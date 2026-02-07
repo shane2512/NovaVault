@@ -18,7 +18,16 @@
     "circle:fresh-setup": "node scripts/fresh-circle-setup.js",
     "circle:use-existing": "node scripts/use-existing-setup.js",
     "circle:recover": "node scripts/recover-entity-secret.js",
-    "circle:python-setup": "python scripts/python_setup.py"
+    "circle:python-setup": "python scripts/python_setup.py",
+    "wallet:create": "npx tsx create-multichain-wallet.ts",
+    "wallet:balance": "npx tsx check-multichain-balance.ts",
+    "wallet:list": "npx tsx scripts/delete-all-wallets.ts",
+    "wallet:quick-start": "node scripts/quick-start.js",
+    "cctp:test": "npx tsx test-cctp-multichain.ts",
+    "cctp:manual-test": "npx tsx test-cctp-manual.ts",
+    "recovery:deploy": "hardhat run scripts/deploy-recovery-controller.js --network arcTestnet",
+    "recovery:verify": "hardhat verify --network arcTestnet",
+    "recovery:test": "hardhat test test/recovery.test.ts"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.4.0",
@@ -36,6 +45,7 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "server-only": "^0.0.1",
     "viem": "^2.7.0",
     "wagmi": "^2.5.0",
     "zustand": "^5.0.11"

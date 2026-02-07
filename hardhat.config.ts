@@ -23,15 +23,6 @@ const config: HardhatUserConfig = {
     cache: "./cache",
     artifacts: "./artifacts",
   },
-  // Add remappings for Uniswap V4 dependencies
-  // This allows Solidity to find @uniswap imports from node_modules
-  external: {
-    contracts: [
-      {
-        artifacts: "node_modules/@uniswap/v4-core/artifacts",
-      },
-    ],
-  },
   networks: {
     arcTestnet: {
       url: process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network",
