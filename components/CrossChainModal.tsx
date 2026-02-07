@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { X, ArrowRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useWalletStore } from '@/lib/wallet-store';
 
 // Type definition for supported chains
-export type SupportedChain = 'ETH-SEPOLIA' | 'MATIC-AMOY' | 'ARC-TESTNET' | 'UNICHAIN-SEPOLIA';
+export type SupportedChain = 'ETH-SEPOLIA' | 'MATIC-AMOY' | 'ARC-TESTNET';
 
 interface CrossChainModalProps {
   isOpen: boolean;
@@ -13,20 +14,24 @@ interface CrossChainModalProps {
 }
 
 const CHAINS = [
-  { id: 'ETH-SEPOLIA' as SupportedChain, name: 'Ethereum Sepolia', icon: '⟠' },
-  { id: 'MATIC-AMOY' as SupportedChain, name: 'Polygon Amoy', icon: '⬣' },
-  { id: 'ARC-TESTNET' as SupportedChain, name: 'Arc Testnet', icon: '◈' },
+  { id: 'ETH-SEPOLIA' as SupportedChain, name: 'Ethereum Sepolia', icon: '⟠', cctpSupported: true, cctpToArc: true },
+  { id: 'MATIC-AMOY' as SupportedChain, name: 'Polygon Amoy', icon: '⬣', cctpSupported: true, cctpToArc: false },
+  { id: 'ARC-TESTNET' as SupportedChain, name: 'Arc Testnet', icon: '◈', cctpSupported: true, cctpToArc: true },
 ];
 
 export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalProps) {
+  const { selectedWallet, getActiveNetwork } = useWalletStore();
+  const activeNetwork = getActiveNetwork();
+  
   const [sourceChain, setSourceChain] = useState<SupportedChain>('ETH-SEPOLIA');
-  const [destChain, setDestChain] = useState<SupportedChain>('ARC-TESTNET');
+  const [destChain, setDestChain] = useState<SupportedChain>('ARC-TESTNET'); // Default to Arc for Sepolia
   const [amount, setAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'burning' | 'attesting' | 'minting' | 'completed' | 'error'>('idle');
   const [error, setError] = useState('');
   const [txHashes, setTxHashes] = useState<{ burn?: string; mint?: string }>({});
-  const [bridgeMethod, setBridgeMethod] = useState<'bridge-kit' | 'manual-cctp' | null>(null);
+  const [explorerUrls, setExplorerUrls] = useState<{ burn?: string; mint?: string }>({});
+  const [bridgeMethod, setBridgeMethod] = useState<'bridge-kit' | 'manual-cctp' | 'standard-cctp' | null>(null);
   
   // Balance state
   const [balances, setBalances] = useState<Record<SupportedChain, string>>({
@@ -37,20 +42,27 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
   const [totalBalance, setTotalBalance] = useState('0');
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   
-  const walletAddress = process.env.NEXT_PUBLIC_CIRCLE_WALLET_ADDRESS || '0x5f90f52ffdc875a8d93021c76d2e612a6459df63';
+  // Get wallet address from active network (same address across all networks)
+  const walletAddress = activeNetwork?.address || selectedWallet?.networks?.[0]?.address;
   
   // Load balances on mount
   useEffect(() => {
-    if (isOpen) {
+    console.log('🌉 Bridge modal effect triggered:', { isOpen, walletAddress, selectedWallet: selectedWallet?.name });
+    
+    if (isOpen && walletAddress) {
+      console.log('🔄 Loading bridge balances for address:', walletAddress);
       loadBalances();
+    } else if (isOpen && !walletAddress) {
+      console.error('❌ Bridge modal opened but no wallet address available');
     }
-  }, [isOpen]);
+  }, [isOpen, walletAddress]);
   
   const loadBalances = async () => {
     setIsLoadingBalances(true);
     try {
-      // Call API route instead of direct service function
-      const response = await fetch(`/api/cctp/balance?address=${walletAddress}`);
+      // Call API route with cache-busting timestamp to force fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/cctp/balance?address=${walletAddress}&t=${timestamp}`);
       const result = await response.json();
       
       if (!response.ok) {
@@ -92,46 +104,136 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
       setError('Source and destination chains must be different');
       return;
     }
-    
+
+    if (!selectedWallet?.id) {
+      setError('No Circle wallet selected');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
     setStatus('burning');
     
     try {
-      console.log('Starting transfer:', { sourceChain, destChain, amount });
+      // Check if this involves Arc (requires manual CCTP)
+      const involvesArc = sourceChain === 'ARC-TESTNET' || destChain === 'ARC-TESTNET';
       
-      // Call API route instead of direct service function
-      const response = await fetch('/api/cctp/bridge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceChain,
-          destinationChain: destChain,
-          amount,
+      if (involvesArc) {
+        // Manual CCTP for Arc transfers
+        console.log('🚀 Starting Manual CCTP (Arc) transfer:', { 
+          sourceChain, 
+          destChain, 
+          amount, 
           recipient: walletAddress
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Bridge failed');
+        });
+
+        // Only support Sepolia ↔ Arc for now
+        if (sourceChain !== 'ETH-SEPOLIA' && destChain !== 'ARC-TESTNET') {
+          throw new Error('Arc bridge currently supports Sepolia → Arc only');
+        }
+        
+        // Get wallet IDs for each chain
+        const sepoliaNetwork = selectedWallet.networks.find(n => n.blockchain === 'ETH-SEPOLIA');
+        const arcNetwork = selectedWallet.networks.find(n => n.blockchain === 'ARC-TESTNET');
+        
+        if (!sepoliaNetwork?.walletId || !arcNetwork?.walletId) {
+          throw new Error('Wallet not configured for multi-chain transfers. Please create a new multi-chain wallet.');
+        }
+
+        setStatus('burning');
+        const response = await fetch('/api/cctp/manual-bridge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sepoliaWalletId: sepoliaNetwork.walletId,
+            arcWalletId: arcNetwork.walletId,
+            amount,
+            destinationAddress: walletAddress
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Manual CCTP bridge failed');
+        }
+        
+        setBridgeMethod('manual-cctp');
+        setTxHashes({
+          burn: result.burnTxHash,
+          mint: result.mintTxHash,
+        });
+        
+        setExplorerUrls({
+          burn: result.explorerUrls?.burn,
+          mint: result.explorerUrls?.mint,
+        });
+        
+        console.log('✅ Manual CCTP transfer complete!');
+        console.log('   Burn TX:', result.burnTxHash);
+        console.log('   Mint TX:', result.mintTxHash);
+        
+        setStatus('completed');
+        
+      } else {
+        // Standard CCTP: Point-to-point bridge (Sepolia ↔ Amoy)
+        console.log('🌉 Starting Standard CCTP bridge:', { 
+          sourceChain, 
+          destChain, 
+          amount, 
+          recipient: walletAddress,
+          circleWalletId: selectedWallet.id
+        });
+        
+        const response = await fetch('/api/cctp/bridge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceChain,
+            destinationChain: destChain,
+            amount,
+            recipient: walletAddress,
+            circleWalletId: selectedWallet.id
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Bridge failed');
+        }
+        
+        setBridgeMethod(result.method || 'circle-cctp-direct');
+        
+        setTxHashes({
+          burn: result.burnTxHash,
+          mint: undefined,
+        });
+        
+        setExplorerUrls({
+          burn: result.burnExplorerUrl,
+          mint: undefined,
+        });
+        
+        console.log('✅ CCTP bridge initiated!');
+        console.log('   Burn TX:', result.burnTxHash);
+        console.log('   USDC will mint on destination in 10-20 minutes');
+        
+        setStatus('completed');
       }
       
-      // Store which method was used
-      setBridgeMethod(result.method || 'bridge-kit');
+      // Optimistically update balances
+      const newSourceBalance = (parseFloat(balances[sourceChain]) - parseFloat(amount)).toFixed(6);
+      setBalances(prev => ({
+        ...prev,
+        [sourceChain]: newSourceBalance
+      }));
       
-      setTxHashes({
-        burn: result.burnTxHash,
-        mint: result.mintTxHash
-      });
-      
-      setStatus('completed');
-      
-      // Reload balances
+      // Reload balances after confirmation
       setTimeout(() => {
+        console.log('🔄 Reloading balances after bridge confirmation...');
         loadBalances();
-      }, 2000);
+      }, 15000); // 15 seconds to allow blockchain confirmation
       
       if (onSuccess) {
         onSuccess();
@@ -145,7 +247,16 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
       
     } catch (err: any) {
       console.error('Transfer failed:', err);
-      setError(err.message || 'Transfer failed');
+      
+      // Format error message for display
+      let errorMessage = err.message || 'Transfer failed';
+      
+      // Make multi-line errors more readable
+      if (errorMessage.includes('\n')) {
+        errorMessage = errorMessage.split('\n')[0]; // Show first line only
+      }
+      
+      setError(errorMessage);
       setStatus('error');
     } finally {
       setIsLoading(false);
@@ -157,6 +268,7 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
     setStatus('idle');
     setError('');
     setTxHashes({});
+    setExplorerUrls({});
   };
   
   const setMaxAmount = () => {
@@ -170,10 +282,12 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
   };
   
   const getEstimatedTime = () => {
+    // Manual CCTP for Arc transfers: 10-20 seconds (burn + attestation + mint)
     if (sourceChain === 'ARC-TESTNET' || destChain === 'ARC-TESTNET') {
-      return '~2-3 minutes';
+      return '~10-20 seconds';
     }
-    return '~1-2 minutes';
+    // Standard CCTP for Sepolia ↔ Amoy
+    return '~15-20 minutes';
   };
   
   const getExplorerLink = (chain: SupportedChain, txHash: string) => {
@@ -189,9 +303,9 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-bold">Cross-Chain Transfer</h2>
           <button
             onClick={() => {
@@ -204,6 +318,33 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
           </button>
         </div>
         
+        {/* Bridge Wallet Warning */}
+        <div className="p-4 bg-amber-50 border-b border-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-900 mb-1">Bridge Wallet Required</p>
+              <p className="text-amber-800 mb-2">
+                Bridging uses a separate wallet that needs USDC on the source chain.
+              </p>
+              <p className="text-xs text-amber-700">
+                Bridge wallet: <code className="bg-amber-100 px-1 py-0.5 rounded">0x2801...70EC</code>
+                {' '}·{' '}
+                <a 
+                  href="https://faucet.circle.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline hover:text-amber-900"
+                >
+                  Get testnet USDC →
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto flex-1">
         {/* Unified Balance */}
         <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 border-b">
           <div className="text-sm text-gray-600 mb-1">Total USDC Across All Chains</div>
@@ -231,6 +372,51 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
         
         {/* Transfer Interface */}
         <div className="p-4">
+          {/* Bridge Kit Configuration Notice */}
+          {sourceChain !== destChain && !process.env.NEXT_PUBLIC_BRIDGE_ENABLED && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <div className="flex gap-2">
+                <span className="text-amber-600 flex-shrink-0 text-xl">⚙️</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-900 mb-1">
+                    Circle API Configuration Required
+                  </p>
+                  <p className="text-xs text-amber-800 leading-relaxed mb-2">
+                    To enable cross-chain bridging with your Circle wallets, configure Circle API credentials in <code className="bg-amber-100 px-1 py-0.5 rounded">.env.local</code>:
+                  </p>
+                  <code className="block text-xs bg-amber-900 text-amber-50 p-2 rounded mb-2 overflow-x-auto">
+                    CIRCLE_API_KEY=your_api_key<br/>
+                    CIRCLE_ENTITY_SECRET=your_entity_secret
+                  </code>
+                  <p className="text-xs text-amber-700">
+                    <b>Note:</b> This uses Circle's Programmable Wallets SDK to interact with CCTP contracts directly. No bridge wallet needed!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {sourceChain !== destChain && process.env.NEXT_PUBLIC_BRIDGE_ENABLED && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex gap-2">
+                <span className="text-blue-600 flex-shrink-0 text-xl">🌉</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900 mb-1">
+                    Direct Circle Wallet CCTP Bridging
+                  </p>
+                  <div className="text-xs text-blue-800 leading-relaxed space-y-1">
+                    <p><b>Step 1:</b> Approve USDC spend to CCTP TokenMessenger contract</p>
+                    <p><b>Step 2:</b> Call depositForBurn (burns USDC on source chain)</p>
+                    <p><b>Automatic:</b> Circle attests and mints USDC on destination (~10-20 min)</p>
+                  </div>
+                  <p className="text-xs text-blue-700 mt-2">
+                    ✅ All transactions from YOUR Circle wallet - no bridge wallet needed!
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Source Chain */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">From</label>
@@ -303,15 +489,31 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
                   disabled={isLoading}
                   className={`flex-1 p-3 rounded-lg border-2 transition-colors disabled:opacity-50 ${
                     destChain === chain.id
-                      ? 'border-orange-500 bg-orange-50'
+                      ? chain.cctpSupported 
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-yellow-500 bg-yellow-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  } ${!chain.cctpSupported ? 'opacity-60' : ''}`}
                 >
                   <div className="text-2xl mb-1">{chain.icon}</div>
                   <div className="text-xs font-medium">{chain.name.split(' ')[0]}</div>
+                  {!chain.cctpSupported && (
+                    <div className="text-[10px] text-yellow-600 mt-1">Coming Soon</div>
+                  )}
                 </button>
               ))}
             </div>
+            {destChain === 'ARC-TESTNET' && (
+              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="text-yellow-600 mt-0.5" size={16} />
+                  <div className="text-xs text-yellow-800">
+                    <strong>Arc Network:</strong> CCTP bridging to Arc is not yet supported. 
+                    Currently supported routes: Sepolia ↔ Polygon Amoy
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Transfer Info */}
@@ -322,8 +524,17 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
             </div>
             <div className="flex justify-between mb-1">
               <span className="text-gray-600">Bridge protocol:</span>
-              <span className="font-medium text-gray-900">Circle CCTP</span>
+              <span className="font-medium text-gray-900">
+                {destChain === 'ARC-TESTNET' || sourceChain === 'ARC-TESTNET' ? 'Circle Gateway' : 'Circle CCTP'}
+              </span>
             </div>
+            {destChain === 'ARC-TESTNET' && (
+              <div className="mt-2 pt-2 border-t border-blue-200">
+                <div className="text-xs text-blue-700">
+                  <strong>Gateway:</strong> Unified balance model with instant minting (&lt;500ms)
+                </div>
+              </div>
+            )}
             {bridgeMethod && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Method:</span>
@@ -336,9 +547,9 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
           
           {/* Error Message */}
           {error && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4">
+            <div className="flex items-start gap-2 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
               <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-red-700">{error}</div>
+              <div className="text-sm text-red-700 whitespace-pre-line flex-1">{error}</div>
             </div>
           )}
           
@@ -399,22 +610,25 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
                 <CheckCircle2 size={20} className="text-green-600" />
                 <span className="font-medium text-green-900">Transfer Completed!</span>
               </div>
-              {txHashes.burn && (
+              <p className="text-sm text-green-700 mb-3">
+                Your USDC has been burned on {sourceChain.split('-')[0]}. The attestation process will complete in ~15 minutes, then USDC will be minted on {destChain.split('-')[0]}.
+              </p>
+              {explorerUrls.burn && (
                 <a
-                  href={getExplorerLink(sourceChain, txHashes.burn)}
+                  href={explorerUrls.burn}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-green-700 hover:text-green-800 block mb-1"
+                  className="inline-flex items-center gap-1 text-sm text-green-700 hover:text-green-800 font-medium bg-white px-3 py-2 rounded-lg border border-green-200 hover:border-green-300 transition-colors"
                 >
-                  View burn transaction →
+                  View Transaction on Explorer →
                 </a>
               )}
-              {txHashes.mint && (
+              {explorerUrls.mint && (
                 <a
-                  href={getExplorerLink(destChain, txHashes.mint)}
+                  href={explorerUrls.mint}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-green-700 hover:text-green-800 block"
+                  className="text-xs text-green-700 hover:text-green-800 block mt-2"
                 >
                   View mint transaction →
                 </a>
@@ -445,6 +659,8 @@ export function CrossChainModal({ isOpen, onClose, onSuccess }: CrossChainModalP
             Powered by Circle CCTP (Cross-Chain Transfer Protocol)
           </div>
         </div>
+        </div>
+        {/* End Scrollable Content */}
       </div>
     </div>
   );
