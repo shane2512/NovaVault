@@ -1,5 +1,5 @@
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
-
+import 'server-only';
+import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";import { randomUUID } from 'crypto';
 // Arc Network Configuration (verified from docs.arc.network)
 export const ARC_CONFIG = {
   chainId: 5042002,
@@ -73,7 +73,7 @@ export class CircleWalletsService {
     const client = await this.initialize();
     
     const response = await client.createWalletSet({
-      idempotencyKey: `walletset-${Date.now()}`,
+      idempotencyKey: randomUUID(),
       name,
     });
 
@@ -92,7 +92,7 @@ export class CircleWalletsService {
     }
 
     const response = await client.createWallets({
-      idempotencyKey: `wallet-${Date.now()}`,
+      idempotencyKey: randomUUID(),
       walletSetId: this.walletSetId,
       blockchains: ["ARC-TESTNET"],
       count,
@@ -157,12 +157,17 @@ export class CircleWalletsService {
     }
 
     const response = await client.createTransaction({
-      idempotencyKey: `tx-${Date.now()}`,
+      idempotencyKey: randomUUID(),
       walletId,
       tokenId: usdcToken.token.id,
       destinationAddress,
-      amounts: [amount],
-      feeLevel: "MEDIUM",
+      amount: [amount],
+      fee: {
+        type: 'level',
+        config: {
+          feeLevel: 'MEDIUM',
+        },
+      },
     });
 
     return response.data;
@@ -184,7 +189,7 @@ export class CircleWalletsService {
     const client = await this.initialize();
 
     const response = await client.listTransactions({
-      walletId,
+      walletIds: [walletId],
       pageSize: limit,
     });
 
@@ -226,12 +231,17 @@ export class CircleWalletsService {
     const client = await this.initialize();
 
     const response = await client.createContractExecutionTransaction({
-      idempotencyKey: `contract-${Date.now()}`,
+      idempotencyKey: randomUUID(),
       walletId,
       contractAddress,
       abiFunctionSignature: functionSignature,
       abiParameters: parameters,
-      feeLevel: "MEDIUM",
+      fee: {
+        type: 'level',
+        config: {
+          feeLevel: 'MEDIUM',
+        },
+      },
     });
 
     return response.data;

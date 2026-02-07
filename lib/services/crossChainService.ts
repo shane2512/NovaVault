@@ -25,7 +25,7 @@ export const SUPPORTED_CHAINS = {
     tokenMessenger: '0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA',
     messageTransmitter: '0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275',
     tokenMinter: '0xb43db544E2c27092c107639Ad201b3dEfAbcF192',
-    rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com'
+    rpcUrl: 'https://1rpc.io/sepolia'
   },
   'MATIC-AMOY': {
     chainId: 80002,
@@ -125,7 +125,9 @@ export async function sendUSDCToChain(
   console.log(`Step 3/3: Minting USDC on ${destinationChain}...`);
   // Note: We need to extract the message from burn tx logs
   // For now, we'll need to fetch it from the burn transaction receipt
-  const sourceProvider = new ethers.JsonRpcProvider(SUPPORTED_CHAINS[sourceChain].rpcUrl);
+  const sourceConfig = SUPPORTED_CHAINS[sourceChain];
+  const sourceNetwork = ethers.Network.from({ name: sourceChain, chainId: sourceConfig.chainId });
+  const sourceProvider = new ethers.JsonRpcProvider(sourceConfig.rpcUrl, sourceNetwork, { staticNetwork: sourceNetwork });
   const burnReceipt = await sourceProvider.getTransactionReceipt(burnTxHash);
   const messengerAbi = ['event MessageSent(bytes message)'];
   const iface = new ethers.Interface(messengerAbi);
@@ -173,7 +175,8 @@ async function burnUSDC(
   const destConfig = SUPPORTED_CHAINS[destinationChain];
   
   // Setup provider and signer
-  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+  const network = ethers.Network.from({ name: sourceChain, chainId: chainConfig.chainId });
+  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl, network, { staticNetwork: network });
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     throw new Error('PRIVATE_KEY not found in environment');
@@ -370,7 +373,8 @@ async function mintUSDC(
   const chainConfig = SUPPORTED_CHAINS[destinationChain];
   
   // Setup provider and signer
-  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+  const network = ethers.Network.from({ name: destinationChain, chainId: chainConfig.chainId });
+  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl, network, { staticNetwork: network });
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     throw new Error('PRIVATE_KEY not found in environment');
@@ -423,7 +427,8 @@ export async function getCrossChainBalance(
   total: string;
   breakdown: Array<{ chain: SupportedChain; balance: string }>;
 }> {
-  const chains = Object.keys(SUPPORTED_CHAINS) as SupportedChain[];
+  // Only check the 3 Circle wallet networks (exclude UNICHAIN-SEPOLIA)
+  const chains: SupportedChain[] = ['ETH-SEPOLIA', 'MATIC-AMOY', 'ARC-TESTNET'];
   
   // Fetch balances in parallel
   const balances = await Promise.all(
@@ -450,7 +455,8 @@ async function getUSDCBalance(
   address: string
 ): Promise<string> {
   const chainConfig = SUPPORTED_CHAINS[chain];
-  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
+  const network = ethers.Network.from({ name: chain, chainId: chainConfig.chainId });
+  const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl, network, { staticNetwork: network });
   
   const usdcContract = new ethers.Contract(
     chainConfig.usdcAddress,
