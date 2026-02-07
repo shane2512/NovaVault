@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Quote request:', { tokenIn, tokenOut, amountIn, currentNetwork });
-
     // Get swap quote from local DEX
     const quote = await getLocalSwapQuote(
       tokenIn,

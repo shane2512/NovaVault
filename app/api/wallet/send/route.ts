@@ -1,11 +1,13 @@
 // API route to send transaction via Circle SDK or direct blockchain
 import { NextRequest, NextResponse } from 'next/server';
 import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
-import { ethers } from 'ethers';
+import { getTxExplorerUrl, type SupportedChain } from '@/lib/services/circleCCTPService';
 
 export async function POST(request: NextRequest) {
   try {
     const { walletId, to, amount, tokenAddress, blockchain } = await request.json();
+
+    console.log('💸 Send request:', { walletId, blockchain, amount, to: to.substring(0, 10) + '...' });
 
     if (!walletId || !to || !amount) {
       return NextResponse.json(
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
       blockchain: blockchain || 'ETH-SEPOLIA',
       tokenAddress: finalTokenAddress,
       destinationAddress: to,
-      amounts: [amount],
+      amount: [amount],
       fee: {
         type: 'level',
         config: {
@@ -63,14 +65,64 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Extract transaction details from Circle response
+    const result: any = transactionResponse.data;
+    const circleTransactionId = result?.id; // Circle's internal transaction ID (UUID)
+    const blockchainTxHash = result?.txHash; // Actual blockchain transaction hash (if confirmed)
+    
+    // Generate explorer URL only if we have a real blockchain transaction hash
+    let explorerUrl: string | undefined;
+    let message: string;
+    
+    if (blockchainTxHash && blockchainTxHash.startsWith('0x')) {
+      // We have a confirmed blockchain transaction hash
+      const explorerBases: Record<string, string> = {
+        'ETH-SEPOLIA': 'https://sepolia.etherscan.io',
+        'MATIC-AMOY': 'https://amoy.polygonscan.com',
+        'BASE-SEPOLIA': 'https://sepolia.basescan.org',
+        'AVAX-FUJI': 'https://testnet.snowtrace.io',
+        'ARC-TESTNET': 'https://testnet.arcscan.app',
+      };
+      const explorerBase = explorerBases[blockchain as string] || 'https://sepolia.etherscan.io';
+      explorerUrl = `${explorerBase}/tx/${blockchainTxHash}`;
+      message = `Transaction confirmed on blockchain`;
+      
+      console.log('\u2705 Transaction confirmed successfully!');
+      console.log(`   Circle Transaction ID: ${circleTransactionId}`);
+      console.log(`   Blockchain TX Hash: ${blockchainTxHash}`);
+      console.log(`   View on Explorer: ${explorerUrl}`);
+    } else {
+      // Transaction is pending - no blockchain hash yet
+      message = `Transaction submitted to Circle (ID: ${circleTransactionId}). Waiting for blockchain confirmation...`;
+      console.log('\u2705 Transaction submitted to Circle!');
+      console.log(`   Circle Transaction ID: ${circleTransactionId}`);
+      console.log(`   Status: Pending blockchain confirmation`);
+      console.log(`   Note: Transaction hash will be available after confirmation`);
+    }
+
     return NextResponse.json({
       success: true,
       transaction: transactionResponse.data,
+      txHash: blockchainTxHash, // Actual blockchain hash (may be undefined if pending)
+      circleTransactionId, // Circle's internal ID
+      txId: blockchainTxHash || circleTransactionId, // For backwards compatibility
+      explorerUrl,
+      message,
+      state: result?.state, // Include transaction state (INITIATED, PENDING, CONFIRMED, etc.)
     });
   } catch (error: any) {
-    console.error('Transaction error:', error);
+    console.error('❌ Transaction error:', error);
+    console.error('Error details:', error.response?.data || error.message);
+    
+    // Extract Circle API error message
+    const circleError = error.response?.data?.message || error.response?.data?.error;
+    const errorMessage = circleError || error.message || 'Failed to send transaction';
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to send transaction' },
+      { 
+        error: errorMessage,
+        details: error.response?.data
+      },
       { status: 500 }
     );
   }

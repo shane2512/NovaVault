@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ethers } from "ethers";
-import { arcService, ARC_CONFIG } from "@/lib/services/arcService";
+import { arcUtils, ARC_CONFIG } from "@/lib/services/arcUtils";
 
 export default function SetupPage() {
   const { address, isConnected } = useAccount();
@@ -23,7 +23,7 @@ export default function SetupPage() {
   const loadBalance = async () => {
     if (!address) return;
     try {
-      const bal = await arcService.getUSDCBalanceFormatted(address);
+      const bal = await arcUtils.getUSDCBalance(address);
       setBalance(bal);
     } catch (error) {
       console.error("Error loading balance:", error);
@@ -42,7 +42,7 @@ export default function SetupPage() {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
-      await arcService.connect(signer);
+      await arcUtils.connect(signer);
 
       // Import the contract ABI and bytecode
       const SmartWalletArtifact = await import("../../artifacts/contracts/arc/SmartWallet.sol/SmartWallet.json");
@@ -193,7 +193,7 @@ export default function SetupPage() {
                       {walletAddress}
                     </p>
                     <a
-                      href={arcService.getExplorerUrl(walletAddress)}
+                      href={arcUtils.getExplorerUrl(walletAddress)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 dark:text-blue-400 underline mt-2 inline-block"

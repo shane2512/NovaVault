@@ -325,7 +325,7 @@ async function executeUnichainSwap(params: {
   const ethBalance = await provider.getBalance(await signer.getAddress());
   console.log(`ETH balance on Unichain: ${ethers.formatEther(ethBalance)}`);
   
-  if (ethBalance === 0n) {
+  if (ethBalance === BigInt(0)) {
     throw new Error('No ETH on Unichain for gas. Get Unichain Sepolia ETH from faucet: https://sepolia.unichain.org/faucet');
   }
   
@@ -341,7 +341,7 @@ async function executeUnichainSwap(params: {
   const tokenInBalance = await tokenInContract.balanceOf(await signer.getAddress());
   console.log(`Token balance on Unichain: ${ethers.formatUnits(tokenInBalance, 6)}`);
   
-  if (tokenInBalance === 0n) {
+  if (tokenInBalance === BigInt(0)) {
     throw new Error(`No ${tokenIn} on Unichain. Bridge tokens first or wait for bridge to complete.`);
   }
   

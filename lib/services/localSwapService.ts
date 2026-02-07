@@ -15,22 +15,34 @@ const SWAP_CONTRACTS: Record<string, string> = {
 };
 
 const CHAIN_CONFIGS: Record<string, {
-  rpcUrl: string;
+  rpcUrls: string[]; // Multiple RPC endpoints for fallback
   chainId: number;
   weth: string;
 }> = {
   'ETH-SEPOLIA': {
-    rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+    rpcUrls: [
+      'https://eth-sepolia.api.onfinality.io/public',
+      'https://ethereum-sepolia-rpc.publicnode.com',
+      'https://rpc.sentio.xyz/sepolia',
+      'https://ethereum-sepolia-public.nodies.app',
+      'https://ethereum-sepolia.rpc.subquery.network/public',
+      'https://sepolia.drpc.org'
+    ],
     chainId: 11155111,
     weth: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'
   },
   'MATIC-AMOY': {
-    rpcUrl: process.env.POLYGON_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
+    rpcUrls: [
+      process.env.POLYGON_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
+      'https://polygon-amoy.drpc.org'
+    ],
     chainId: 80002,
     weth: '0x360ad4f9a9A8EFe9A8DCB5f461c4Cc1047E1Dcf9'
   },
   'ARC-TESTNET': {
-    rpcUrl: process.env.ARC_RPC_URL || 'https://rpc.testnet.arc.network',
+    rpcUrls: [
+      process.env.ARC_RPC_URL || 'https://rpc.testnet.arc.network'
+    ],
     chainId: 5042002,
     weth: '0x0000000000000000000000000000000000000000'
   }
@@ -63,41 +75,70 @@ export async function getLocalSwapQuote(
   const contractAddress = SWAP_CONTRACTS[network];
   
   if (!contractAddress) {
-    // Fallback to estimated quote if contract not deployed
     return getEstimatedQuote(tokenIn, tokenOut, amountIn);
   }
   
-  try {
-    const config = CHAIN_CONFIGS[network];
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
-    
-    // SimpleSwap ABI for getQuote
-    const swapAbi = [
-      'function getQuote(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOut)'
-    ];
-    
-    const contract = new ethers.Contract(contractAddress, swapAbi, provider);
-    
-    const tokenInDecimals = getTokenDecimals(tokenIn);
-    const tokenOutDecimals = getTokenDecimals(tokenOut);
-    const amountInWei = ethers.parseUnits(amountIn, tokenInDecimals);
-    
-    const amountOutWei = await contract.getQuote(
-      tokenIn === '0x0000000000000000000000000000000000000000' ? ethers.ZeroAddress : tokenIn,
-      tokenOut === '0x0000000000000000000000000000000000000000' ? ethers.ZeroAddress : tokenOut,
-      amountInWei
-    );
-    
-    const amountOut = ethers.formatUnits(amountOutWei, tokenOutDecimals);
-    
-    return {
-      amountOut,
-      priceImpact: 0.3
-    };
-  } catch (error: any) {
-    console.error('Quote from contract failed:', error.message);
+  const config = CHAIN_CONFIGS[network];
+  if (!config) {
     return getEstimatedQuote(tokenIn, tokenOut, amountIn);
   }
+  
+  // Try each RPC endpoint with timeout
+  for (const rpcUrl of config.rpcUrls) {
+    try {
+      const quote = await Promise.race([
+        getQuoteFromContract(contractAddress, tokenIn, tokenOut, amountIn, rpcUrl),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('RPC timeout')), 5000)
+        )
+      ]);
+      
+      return quote;
+      
+    } catch (error: any) {
+      continue;
+    }
+  }
+  
+  // All RPCs failed, use estimated quote
+  return getEstimatedQuote(tokenIn, tokenOut, amountIn);
+}
+
+/**
+ * Get quote from contract with specific RPC
+ */
+async function getQuoteFromContract(
+  contractAddress: string,
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  rpcUrl: string
+): Promise<{ amountOut: string; priceImpact: number }> {
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  
+  // SimpleSwap ABI for getQuote
+  const swapAbi = [
+    'function getQuote(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOut)'
+  ];
+  
+  const contract = new ethers.Contract(contractAddress, swapAbi, provider);
+  
+  const tokenInDecimals = getTokenDecimals(tokenIn);
+  const tokenOutDecimals = getTokenDecimals(tokenOut);
+  const amountInWei = ethers.parseUnits(amountIn, tokenInDecimals);
+  
+  const amountOutWei = await contract.getQuote(
+    tokenIn === '0x0000000000000000000000000000000000000000' ? ethers.ZeroAddress : tokenIn,
+    tokenOut === '0x0000000000000000000000000000000000000000' ? ethers.ZeroAddress : tokenOut,
+    amountInWei
+  );
+  
+  const amountOut = ethers.formatUnits(amountOutWei, tokenOutDecimals);
+  
+  return {
+    amountOut,
+    priceImpact: 0.3
+  };
 }
 
 /**
@@ -123,7 +164,8 @@ export async function executeLocalSwap(params: SwapParams): Promise<SwapResult> 
     throw new Error('PRIVATE_KEY not found');
   }
   
-  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+  // Use first RPC URL for swap execution
+  const provider = new ethers.JsonRpcProvider(config.rpcUrls[0]);
   const signer = new ethers.Wallet(privateKey, provider);
   
   try {
@@ -205,7 +247,8 @@ async function executeDirectSwap(params: SwapParams): Promise<SwapResult> {
     throw new Error('PRIVATE_KEY not configured');
   }
   
-  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+  // Use first RPC URL
+  const provider = new ethers.JsonRpcProvider(config.rpcUrls[0]);
   const signer = new ethers.Wallet(privateKey, provider);
   
   // Calculate output amount

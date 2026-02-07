@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCircleENSService } from "@/lib/services/circleENSService";
+import { createCircleENSServiceV3 } from "@/lib/services/circleENSServiceV3";
 
 /**
  * POST /api/ens/circle/set-record
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Circle ENS service
-    const ensService = createCircleENSService();
+    const ensService = createCircleENSServiceV3();
 
     // Set text record via Circle SDK
     const result = await ensService.setTextRecord(ensName, key, value);
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        txId: result.txId,
+        txId: result.txHash,
         txHash: result.txHash,
         message: `ENS text record '${key}' set successfully`,
         viewOn: result.txHash

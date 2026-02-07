@@ -74,7 +74,7 @@ export async function executeClientSwap(params: ClientSwapParams) {
     console.log('Quote received:', amountOutWei.toString());
   
     // Calculate minimum output with slippage
-    const minAmountOutWei = (amountOutWei * BigInt(Math.floor((100 - slippage) * 100))) / 10000n;
+    const minAmountOutWei = (amountOutWei * BigInt(Math.floor((100 - slippage) * 100))) / BigInt(10000);
     
     const isETHIn = tokenIn === '0x0000000000000000000000000000000000000000';
     

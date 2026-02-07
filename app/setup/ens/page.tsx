@@ -280,15 +280,24 @@ export default function ENSSetupPage() {
           )}
 
           {/* Step 2: ENS Name */}
-          {step ===ircle Wallet Address (Will be bound to ENS)
+          {step === "name" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">ENS Name Registration</h2>
+                <p className="text-gray-400 mb-4">
+                  Enter the ENS name you want to bind to your wallet
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Circle Wallet Address (Will be bound to ENS)
                 </label>
                 <div className="bg-gray-700/50 rounded-lg p-3 font-mono text-sm">
                   {walletAddress}
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
                   This is your Circle MPC wallet that will be linked to the ENS name
-                </passName="text-gray-400 mb-4">
-                  Enter the ENS name you want to bind to your wallet
                 </p>
               </div>
 
